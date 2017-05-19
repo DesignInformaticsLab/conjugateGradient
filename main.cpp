@@ -81,7 +81,7 @@ static cl_program program = NULL;
 	for (int k=0; k<N; k++) {     			// matrix index
 		for(int j=0; j<H; j++) {		// row index
 			for(int i=0; i<H; i++) {	// column index
-				A[j*H + i] = 2.00;
+				A[k*H*H + j*H + i] = 2.00;
 			}
     		}
 	}
@@ -89,12 +89,10 @@ static cl_program program = NULL;
 	// populating B's and initialializing X's
    	for (int k=0; k<N; k++) {			// vector indices
 		for(int j=0; j<H; j++) {		// element index
-			B[j] = 1.00; 
-			X[j] = 0;
+			B[k*H + j] = 1.00; 
+			X[k*H + j] = 0;
 		}
 	}
-
-
 
     // Create memory buffers on the device for each matrix
     cl_mem x_mem_obj = clCreateBuffer(context, CL_MEM_READ_WRITE, N*H*sizeof(float), NULL, &status);
@@ -112,8 +110,10 @@ static cl_program program = NULL;
   status = clSetKernelArg(kernel, 2, sizeof(cl_mem), (void *) &b_mem_obj);		
   checkError(status, "Failed to set kernel arguments");
 
+  int dimention = 1; 					// an array (1-D) of matrices (work-items)
+  size_t gSize = N;
   // Launch the kernel
-  status = clEnqueueNDRangeKernel(queue, kernel, 1, NULL, gSize, wgSize, 0, NULL, NULL);
+  status = clEnqueueNDRangeKernel(queue, kernel, dimention, NULL, N, , 0, NULL, NULL);
   checkError(status, "Failed to launch kernel");
 
   // Wait for command queue to complete pending events

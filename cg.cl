@@ -1,5 +1,13 @@
 #ifndef H
-#define H 64 // default value
+#define H 20 // default value
+#endif
+
+#ifndef N
+#define N 8 // number of stiffness matrices
+#endif
+
+#ifndef SIMD_WORK_ITEMS
+#define SIMD_WORK_ITEMS 4 // default value
 #endif
 
 //////////////////////////////////////////////////////////////////CONJUGATE GRADIENT
@@ -48,18 +56,24 @@ void vector_add(float *v1, float *v2, float *t){
 	}
 }
 
-__kernel void cg(__global float *restrict X, __global float *restrict A, __global float *restrict B, int A_width, int B_width) {
+__kernel 
+__attribute((reqd_work_group_size(N,1,1)))
+__attribute((num_simd_work_items(SIMD_WORK_ITEMS)))
+ void cg(__global float *restrict X, __global float *restrict A, __global float *restrict B, int A_width, int B_width) {
 	
-	int iters = 100;
+	// Get index of the work item
+  	unsigned index = get_global_id(0);
+
+	int iters = 5;
 	float *X_local = {0};
 	#pragma unroll
 	for (int i=0; i<H;i++) { X_local[i]= 0; } 			// x = {0}
 	float A_local[H*H];
 	#pragma unroll
-	for (int i=0; i<(H*H);i++) { A_local[i]= A[i]; } 		// local_copy of A
+	for (int i=0; i<(H*H);i++) { A_local[i]= A[(index*H*H) + i]; } 		// local_copy of A
 	float *r = {0};
 		#pragma unroll
-		for (int i=0; i<H;i++) { r[i]= B[i]; }			// r = b		
+		for (int i=0; i<H;i++) { r[i]= B[(index*H) + i]; }			// r = b		
 	float rtr = vector_dot(r,r);					// rtr = r'r
 	float *p = {0};
 		#pragma unroll
@@ -88,6 +102,6 @@ __kernel void cg(__global float *restrict X, __global float *restrict A, __globa
 		}
 
 	#pragma unroll
-	for (int i=0; i<H;i++) { X[i]= X_local[i]; } 			//write result
+	for (int i=0; i<H;i++) { X[(index*H) + i]= X_local[i]; } 			//write result
 }
 
