@@ -57,29 +57,28 @@ void vector_add(float *v1, float *v2, float *t){
 }
 
 __kernel 
-__attribute((reqd_work_group_size(N,1,1)))
 __attribute((num_simd_work_items(SIMD_WORK_ITEMS)))
  void cg(__global float *restrict X, __global float *restrict A, __global float *restrict B, int A_width, int B_width) {
-	
+
 	// Get index of the work item
   	unsigned index = get_global_id(0);
 
 	int iters = 5;
-	float *X_local = {0};
+	float X_local[H];
 	#pragma unroll
 	for (int i=0; i<H;i++) { X_local[i]= 0; } 			// x = {0}
 	float A_local[H*H];
 	#pragma unroll
 	for (int i=0; i<(H*H);i++) { A_local[i]= A[(index*H*H) + i]; } 		// local_copy of A
-	float *r = {0};
+	float r[H];
 		#pragma unroll
 		for (int i=0; i<H;i++) { r[i]= B[(index*H) + i]; }			// r = b		
 	float rtr = vector_dot(r,r);					// rtr = r'r
-	float *p = {0};
+	float p[H];
 		#pragma unroll
 		for (int i=0; i<H;i++) { p[i]= r[i]; }			// p = r	
 	float alpha, beta, rtrold; 
- 	float *Ap= {0}, *alpha_p= {0}, *alpha_Ap= {0}, *beta_p={0} ;
+ 	float Ap[H], alpha_p[H], alpha_Ap[H], beta_p[H] ;
 	
 	#pragma unroll
 	for (int k=0; k<iters; k++) {
@@ -103,5 +102,5 @@ __attribute((num_simd_work_items(SIMD_WORK_ITEMS)))
 
 	#pragma unroll
 	for (int i=0; i<H;i++) { X[(index*H) + i]= X_local[i]; } 			//write result
-}
 
+}

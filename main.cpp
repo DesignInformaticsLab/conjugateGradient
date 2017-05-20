@@ -111,9 +111,11 @@ static cl_program program = NULL;
   checkError(status, "Failed to set kernel arguments");
 
   int dimention = 1; 					// an array (1-D) of matrices (work-items)
-  size_t gSize = N;
+
+  const size_t global_item_size = N;
+  const size_t local_item_size = 1;
   // Launch the kernel
-  status = clEnqueueNDRangeKernel(queue, kernel, dimention, NULL, N, , 0, NULL, NULL);
+  status = clEnqueueNDRangeKernel(queue, kernel, dimention, NULL, &global_item_size  , &local_item_size, 0, NULL, NULL);
   checkError(status, "Failed to launch kernel");
 
   // Wait for command queue to complete pending events
