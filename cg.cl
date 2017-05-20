@@ -58,7 +58,7 @@ void vector_add(float *v1, float *v2, float *t){
 
 __kernel 
 __attribute((num_simd_work_items(SIMD_WORK_ITEMS)))
- void cg(__global float *restrict X, __global float *restrict A, __global float *restrict B, int A_width, int B_width) {
+ void cg(__global float *restrict X, __global float *restrict A, __global float *restrict B) {
 
 	// Get index of the work item
   	unsigned index = get_global_id(0);

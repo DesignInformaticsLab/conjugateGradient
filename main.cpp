@@ -1,7 +1,5 @@
 #include <assert.h>
 #include <stdio.h>
-#include <fstream>
-#include <iostream>
 #include <stdlib.h>
 #include <math.h>
 #include <cstring>
@@ -17,14 +15,6 @@
 #endif
 
 using namespace aocl_utils;
-using namespace std;
-
-int main(void) {
-
-  cl_int status;
-  if(!setCwdToExeDir()) {
-    return false;
-  }
 
 // runtime configurations
 static cl_platform_id platform = NULL;
@@ -33,6 +23,83 @@ static cl_context context = NULL;
 static cl_command_queue queue = NULL;
 static cl_kernel kernel = NULL;
 static cl_program program = NULL;
+
+// Function prototypes
+bool init();
+void cleanup();
+
+// Entry point
+int main(void) {
+
+  cl_int status;
+  
+  if(!init()) {
+    return -1;
+  }
+
+
+  
+  // problem data // to be read from text files later!					// input_data
+	
+	float *X = new float[H*N];
+     	float *A = new float[H*H*N];
+  	float *B = new float[H*N];
+  
+	// populating A's
+	for (int k=0; k<N; k++) {     			// matrix index
+		for(int j=0; j<H; j++) {		// row index
+			for(int i=0; i<H; i++) {	// column index
+				A[k*H*H + j*H + i] = 2.00;
+			}
+    		}
+	}
+
+	// populating B's and initialializing X's
+   	for (int k=0; k<N; k++) {			// vector indices
+		for(int j=0; j<H; j++) {		// element index
+			B[k*H + j] = 1.00; 
+			X[k*H + j] = 0;
+		}
+	}
+
+    // Create memory buffers on the device for each matrix
+    cl_mem x_mem_obj = clCreateBuffer(context, CL_MEM_READ_WRITE, N*H*sizeof(float), NULL, &status);
+    cl_mem a_mem_obj = clCreateBuffer(context, CL_MEM_READ_WRITE, N*H*H*sizeof(float), NULL, &status);
+    cl_mem b_mem_obj = clCreateBuffer(context, CL_MEM_READ_WRITE, N*H*sizeof(float), NULL, &status);
+
+    // Copy the matrix A, B and X to each device memory counterpart
+    status = clEnqueueWriteBuffer(queue, x_mem_obj, CL_TRUE, 0, N*H*sizeof(float), X, 0, NULL, NULL);
+    status = clEnqueueWriteBuffer(queue, a_mem_obj, CL_TRUE, 0, N*H*H*sizeof(float), A, 0, NULL, NULL);
+    status = clEnqueueWriteBuffer(queue, b_mem_obj, CL_TRUE, 0, N*H*sizeof(float), B, 0, NULL, NULL);
+  // Set the kernel arguments
+  status = clSetKernelArg(kernel, 0, sizeof(cl_mem), (void *) &x_mem_obj);		
+  status = clSetKernelArg(kernel, 1, sizeof(cl_mem), (void *) &a_mem_obj);		
+  status = clSetKernelArg(kernel, 2, sizeof(cl_mem), (void *) &b_mem_obj);		
+  checkError(status, "Failed to set kernel arguments");
+
+  int dimention = 1; 					// an array (1-D) of matrices (work-items)
+  size_t global_item_size[3] = {N,1,1} ;
+  size_t local_item_size[3] = {N,1,1} ;
+  // Launch the kernel
+  status = clEnqueueNDRangeKernel(queue, kernel, dimention, NULL, global_item_size  , local_item_size, 0, NULL, NULL);
+  checkError(status, "Failed to launch kernel");
+
+  // Wait for command queue to complete pending events
+  status = clFinish(queue);
+  checkError(status, "Failed to finish");
+
+  cleanup();
+    return 0;
+
+}
+
+bool init() {
+  cl_int status;
+
+  if(!setCwdToExeDir()) {
+    return false;
+  }
+
 
 
   // Get the OpenCL platform.								// platform
@@ -71,68 +138,22 @@ static cl_program program = NULL;
   kernel = clCreateKernel(program, kernel_name, &status);
   checkError(status, "Failed to create kernel");
 
-// problem data // to be read from text files later!					// input_data
-	
-	float *X = new float[H*N];
-     	float *A = new float[H*H*N];
-  	float *B = new float[H*N];
-  
-	// populating A's
-	for (int k=0; k<N; k++) {     			// matrix index
-		for(int j=0; j<H; j++) {		// row index
-			for(int i=0; i<H; i++) {	// column index
-				A[k*H*H + j*H + i] = 2.00;
-			}
-    		}
-	}
 
-	// populating B's and initialializing X's
-   	for (int k=0; k<N; k++) {			// vector indices
-		for(int j=0; j<H; j++) {		// element index
-			B[k*H + j] = 1.00; 
-			X[k*H + j] = 0;
-		}
-	}
+return true;
+}
 
-    // Create memory buffers on the device for each matrix
-    cl_mem x_mem_obj = clCreateBuffer(context, CL_MEM_READ_WRITE, N*H*sizeof(float), NULL, &status);
-    cl_mem a_mem_obj = clCreateBuffer(context, CL_MEM_READ_WRITE, N*H*H*sizeof(float), NULL, &status);
-    cl_mem b_mem_obj = clCreateBuffer(context, CL_MEM_READ_WRITE, N*H*sizeof(float), NULL, &status);
-
-    // Copy the matrix A, B and X to each device memory counterpart
-    status = clEnqueueWriteBuffer(queue, x_mem_obj, CL_TRUE, 0, N*H*sizeof(float), X, 0, NULL, NULL);
-    status = clEnqueueWriteBuffer(queue, a_mem_obj, CL_TRUE, 0, N*H*H*sizeof(float), A, 0, NULL, NULL);
-    status = clEnqueueWriteBuffer(queue, b_mem_obj, CL_TRUE, 0, N*H*sizeof(float), B, 0, NULL, NULL);
-
-  // Set the kernel arguments
-  status = clSetKernelArg(kernel, 0, sizeof(cl_mem), (void *) &x_mem_obj);		
-  status = clSetKernelArg(kernel, 1, sizeof(cl_mem), (void *) &a_mem_obj);		
-  status = clSetKernelArg(kernel, 2, sizeof(cl_mem), (void *) &b_mem_obj);		
-  checkError(status, "Failed to set kernel arguments");
-
-  int dimention = 1; 					// an array (1-D) of matrices (work-items)
-
-  const size_t global_item_size = N;
-  const size_t local_item_size = 1;
-  // Launch the kernel
-  status = clEnqueueNDRangeKernel(queue, kernel, dimention, NULL, &global_item_size  , &local_item_size, 0, NULL, NULL);
-  checkError(status, "Failed to launch kernel");
-
-  // Wait for command queue to complete pending events
-  status = clFinish(queue);
-  checkError(status, "Failed to finish");
-
-  printf("\nKernel execution is complete.\n");
-
-// Clean up
-    status =clReleaseKernel(kernel);
-    status = clReleaseProgram(program);
-    status = clReleaseMemObject(a_mem_obj);
-    status = clReleaseMemObject(b_mem_obj);
-    status = clReleaseMemObject(x_mem_obj);
-    status = clReleaseCommandQueue(queue);
-    status = clReleaseContext(context);
-    return 0;
-
+void cleanup() {
+  if(kernel) {
+    clReleaseKernel(kernel);  
+  }
+  if(program) {
+    clReleaseProgram(program);
+  }
+  if(queue) {
+    clReleaseCommandQueue(queue);
+  }
+  if(context) {
+    clReleaseContext(context);
+  }
 }
 
