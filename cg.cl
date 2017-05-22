@@ -1,3 +1,7 @@
+#ifndef ITERATIONS
+#define ITERATIONS 5
+#endif
+
 #ifndef H
 #define H 20 // default value
 #endif
@@ -37,7 +41,7 @@ void matrix_vector(float *m,float *v, float *t){
 void scalar_vector(float s,float *v, float *t){
 	#pragma unroll
 	for (int i=0; i<H;i++) {
-		t[i]*= s;
+		t[i]= v[i]*s;
 	}
 }
 
@@ -63,7 +67,7 @@ __attribute((num_simd_work_items(SIMD_WORK_ITEMS)))
 	// Get index of the work item
   	unsigned index = get_global_id(0);
 
-	int iters = 5;
+	int iters = ITERATIONS;
 	float X_local[H];
 	#pragma unroll
 	for (int i=0; i<H;i++) { X_local[i]= 0; } 			// x = {0}
