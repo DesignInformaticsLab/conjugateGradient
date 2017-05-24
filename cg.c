@@ -1,11 +1,11 @@
 #include <stdio.h>
 
 #ifndef ITERATIONS
-#define ITERATIONS 4 // number of stiffness matrices
+#define ITERATIONS 6 // number of stiffness matrices
 #endif
 
 #ifndef H
-#define H 4 // stiffness matrix dimension
+#define H 2 // stiffness matrix dimension
 #endif
 
 #ifndef N
@@ -14,7 +14,8 @@
 
 float vector_dot(float *vt,float *v){	
 	float ts= 0.0f;	
-	for (int i=0; i<H; i++) {
+	int i;
+	for (i=0; i<H; i++) {
 		ts+= vt[i]*v[i];
 	}
 	return ts;
@@ -22,9 +23,10 @@ float vector_dot(float *vt,float *v){
 
 // M*v function
 void matrix_vector(float *m,float *v, float *t){
-	#pragma unroll	
-	for (int j=0; j<H; j++) {	
-		for (int i=0; i<H; i++) {
+	int i,j;
+	for (j=0; j<H; j++) {
+		t[j]=0;	
+		for (i=0; i<H; i++) {
 		t[j]+= m[j*H+i]*v[i];		
 		}	
 	}	
@@ -32,21 +34,24 @@ void matrix_vector(float *m,float *v, float *t){
 
 // k*v function
 void scalar_vector(float s,float *v, float *t){
-	for (int i=0; i<H;i++) {
+	int i;	
+	for (i=0; i<H;i++) {
 		t[i]= v[i]*s;
 	}
 }
 
 // v1-v2 function
 void vector_sub(float *v1, float *v2, float *t){
-	for (int i=0; i<H;i++) {
+	int i;
+	for (i=0; i<H;i++) {
 		t[i]= v1[i]-v2[i];
 	}
 }
 
 // v1+v2 function
 void vector_add(float *v1, float *v2, float *t){
-	for (int i=0; i<H;i++) {
+	int i;
+	for (i=0; i<H;i++) {
 		t[i]= v1[i]+v2[i];
 	}
 }
@@ -54,7 +59,9 @@ void vector_add(float *v1, float *v2, float *t){
 
 void main(void) {
 
-
+	int i,j,k;
+	const float f = 1e-16;
+	printf("value of constant f %f \n", f);
 	// input_data
 	
 	float X[H*N];
@@ -62,7 +69,7 @@ void main(void) {
   	float B[H*N];
   
 	// populating A's
-	for (int k=0; k<N; k++) {     			// matrix index
+	/*for (int k=0; k<N; k++) {     			// matrix index
 		for(int j=0; j<H; j++) {		// row index
 			for(int i=0; i<H; i++) {	// column index
 				A[k*H*H + j*H + i] = 40786.00;
@@ -77,11 +84,20 @@ void main(void) {
 			X[k*H + j] = 0;
 		}
 	}
+	*/
 
+	A[0]=2.00;
+	A[1]=-1.00;
+	A[2]=-1.00;
+	A[3]=2.00;
+	B[0] = 1.00;
+	B[1] = 0.00; 
+	X[0] = 0.00;
+	X[1] = 0.00;
 
 printf("Matrices: AX = B\n");
-for (int j=0;j<H;j++) {
-	for (int i=0;i<H;i++) {
+for (j=0;j<H;j++) {
+	for (i=0;i<H;i++) {
 		printf("%f ",A[j*H + i]);
 	}
 	printf(" %f  %f", X[j], B[j]);
@@ -90,49 +106,84 @@ for (int j=0;j<H;j++) {
 
 	int iters = ITERATIONS;
 	float X_local[H];
-	for (int i=0; i<H;i++) 
+	for (i=0; i<H;i++) 
 		{ X_local[i]= 0; } 					// x = {0}
 	float A_local[H*H];
-	for (int i=0; i<(H*H);i++) 
+	for (i=0; i<(H*H);i++) 
 		{ A_local[i]= A[i]; }		 			// local_copy of A
 	float r[H];
-	for (int i=0; i<H;i++) 
+	for (i=0; i<H;i++) 
 		{ r[i]= B[i]; }						// r = b		
 	float rtr = vector_dot(r,r);					// rtr = r'r
 	float p[H];
-	for (int i=0; i<H;i++) 
+	for (i=0; i<H;i++) 
 		{ p[i]= r[i]; }						// p = r	
-	float alpha, beta, rtrold; 
+	float alpha, beta, rtrold, pAp; 
  	float Ap[H], alpha_p[H], alpha_Ap[H], beta_p[H] ;
 	
+	for (k=0; k<iters; k++) {
 
-	for (int k=0; k<iters; k++) {
-
-		matrix_vector(A_local,p, Ap);
-		alpha= rtr/vector_dot(p,Ap);				// alpha
+		printf("iteration: %d \n", (k+1));		
+		printf("rtr_old= %f \n",rtr);	
+		matrix_vector(A_local,p, Ap);				//Ap
 		
-		scalar_vector(alpha,p,alpha_p);				
-		vector_add(X_local,alpha_p,X_local);			// update x
+		printf("Ap:\n");
+                for (j=0;j<H;j++) {
+                        printf("%f\n",Ap[j]);
+                }
 
+		pAp= vector_dot(p,Ap);
+		printf("pAp= %f \n",pAp);				//pAp
+		alpha= rtr/(pAp+f);				
+		printf("alpha= %f \n", alpha);				// alpha
+
+		scalar_vector(alpha,p,alpha_p);
+		printf("alpha_p:\n");
+                for (j=0;j<H;j++) {
+                        printf("%f\n",alpha_p[j]);
+                }
+
+						
+		vector_add(X_local,alpha_p,X_local);			// update x
+		printf("X:\n");
+                for (j=0;j<H;j++) {
+                        printf("%f\n",X_local[j]);
+                }
+
+		
 		scalar_vector(alpha,Ap,alpha_Ap);     		
+		printf("alpha_Ap:\n");
+                for (j=0;j<H;j++) {
+                        printf("%f\n",alpha_Ap[j]);
+                }
+
+
 		vector_sub(r,alpha_Ap,r);				// update r
-    		
-		rtrold = rtr;						
+
+		printf("residual:\n");
+		for (j=0;j<H;j++) {
+			printf("%f\n",r[j]);
+		}
+
+		rtrold = rtr;				
     		rtr = vector_dot(r,r);
-    		beta = rtr / rtrold;					// beta
+		printf("rtr_new= %f \n",rtr);
+
+    		beta = rtr / (rtrold+f);					// beta
+		printf("beta= %f \n", beta);
 		
 		scalar_vector(beta,p,beta_p);
+		printf("beta_p:\n");
+                for (j=0;j<H;j++) {
+                        printf("%f\n",beta_p[j]);
+                }
+
     		vector_add(r,beta_p,p);					// update p	
-		}
+		printf("p:\n");
+                for (j=0;j<H;j++) {
+                        printf("%f\n",p[j]);
+                }
 
-	for (int i=0; i<H;i++) { X[i]= X_local[i]; }		 	//write result
-
-	printf("AX = B ??\n");
-	for (int j=0;j<H;j++) {
-		for (int i=0;i<H;i++) {
-			printf("%f ",A[j*H + i]);
-		}
-		printf(" %f  %f", X[j], B[j]);
-		printf("\n");
+		for (i=0; i<H;i++) { X[i]= X_local[i]; }		 //write result
 	}
 }

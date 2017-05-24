@@ -5,15 +5,18 @@
 #include <cstring>
 #include "CL/opencl.h"
 #include "AOCLUtils/aocl_utils.h"
+#include <fstream>
+#include <iostream>
 
 #ifndef H
 #define H 20 // stiffness matrix dimension
 #endif
 
 #ifndef N
-#define N 8 // number of stiffness matrices
+#define N 1 // number of stiffness matrices
 #endif
 
+using namespace std;
 using namespace aocl_utils;
 
 // runtime configurations
@@ -39,26 +42,56 @@ int main(void) {
 
 
   
-  // problem data // to be read from text files later!					// input_data
+  // problem data from text files
 	
 	float *X = new float[H*N];
      	float *A = new float[H*H*N];
   	float *B = new float[H*N];
-  
+	
+	ifstream inFile;
+	inFile.open("/home/doi4/Downloads/compressed/hello_world/host/src/stiffness1.txt");
+
+  	if (!inFile) {
+  	  cout << "Cannot open file.\n";
+  	}
+
+
 	// populating A's
-	for (int k=0; k<N; k++) {     			// matrix index
-		for(int j=0; j<H; j++) {		// row index
-			for(int i=0; i<H; i++) {	// column index
-				A[k*H*H + j*H + i] = 2.00;
+	for (int k = 0; k < N; k++) {
+		for (int j = 0; j < H; j++) {
+			for (int i=0; i<H; i++) {
+				inFile >> A[k*H*H + j*H + i];
 			}
-    		}
+		}
 	}
+		
+	inFile.close();
+
 
 	// populating B's and initialializing X's
    	for (int k=0; k<N; k++) {			// vector indices
 		for(int j=0; j<H; j++) {		// element index
 			B[k*H + j] = 1.00; 
 			X[k*H + j] = 0;
+		}
+	}
+
+		/*B[0] = 1.00;
+		B[1] = 0.00; 
+		X[0] = 0;
+		X[1] = 0;*/
+	
+	
+
+	// print AX=B before computation
+	for (int k = 0; k < N; k++) {
+		for (int j = 0; j < H; j++) {
+			for (int i=0; i<H; i++) {
+				cout << A[k*H*H + j*H + i] << " ";
+			}
+		cout << X[k*H + j] << " ";
+		cout << B[k*H + j] << " ";
+	cout << "\n";
 		}
 	}
 
@@ -84,11 +117,32 @@ int main(void) {
   status = clEnqueueNDRangeKernel(queue, kernel, dimention, NULL, global_item_size  , local_item_size, 0, NULL, NULL);
   checkError(status, "Failed to launch kernel");
 
+  // Read the output
+  status = clEnqueueReadBuffer(queue, x_mem_obj, CL_TRUE, 0, N*H*sizeof(float), X, 0, NULL, NULL);
+  checkError(status, "Failed to read output matrix");
+
+
   // Wait for command queue to complete pending events
   status = clFinish(queue);
   checkError(status, "Failed to finish");
 
-  cleanup();
+// check AX=B after computation
+	for (int k = 0; k< N; k++) {
+		for (int j = 0; j < H; j++) {
+			B[k*H + j]=0.00;
+			for (int i=0; i<H; i++) {
+				/*cout << B[k*H + j] << " ";
+				cout << A[k*H*H + j*H + i] << " ";
+				cout << X[k*H + i] << "\n";*/
+				B[k*H + j]+= A[k*H*H + j*H + i] * X[k*H + i];
+			}
+		}
+	}
+	cout << B[0] << "\n";	
+	cleanup();
+	clReleaseMemObject(x_mem_obj);
+	clReleaseMemObject(a_mem_obj);
+	clReleaseMemObject(b_mem_obj);
     return 0;
 
 }
