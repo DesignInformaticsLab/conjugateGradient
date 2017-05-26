@@ -1,13 +1,13 @@
 #ifndef ITERATIONS
-#define ITERATIONS 6
+#define ITERATIONS 250
 #endif
 
 #ifndef H
-#define H 20 // default value
+#define H 440 // default value
 #endif
 
 #ifndef N
-#define N 1 // number of stiffness matrices
+#define N 8 // number of stiffness matrices
 #endif
 
 #ifndef SIMD_WORK_ITEMS
@@ -69,7 +69,7 @@ __attribute((num_simd_work_items(SIMD_WORK_ITEMS)))
 
 	// Get index of the work item
   	unsigned index = get_global_id(0);
-	float f = 1e-16;
+	//float f = 1e-16;
 
 	int iters = ITERATIONS;
 	float X_local[H];
@@ -92,7 +92,7 @@ __attribute((num_simd_work_items(SIMD_WORK_ITEMS)))
 	for (int k=0; k<iters; k++) {
 
 		matrix_vector(A_local,p, Ap);
-		alpha= rtr/(vector_dot(p,Ap)+f);				// alpha
+		alpha= rtr/(vector_dot(p,Ap));				// alpha	///
 		
 		scalar_vector(alpha,p,alpha_p);				
 		vector_add(X_local,alpha_p,X_local);			// update x
@@ -102,7 +102,7 @@ __attribute((num_simd_work_items(SIMD_WORK_ITEMS)))
     		
 		rtrold = rtr;						
     		rtr = vector_dot(r,r);
-    		beta = rtr / (rtrold+f);					// beta
+    		beta = rtr / (rtrold);					// beta	///
 		
 		scalar_vector(beta,p,beta_p);
     		vector_add(r,beta_p,p);					// update p	

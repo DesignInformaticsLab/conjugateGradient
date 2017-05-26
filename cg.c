@@ -1,11 +1,11 @@
 #include <stdio.h>
 
 #ifndef ITERATIONS
-#define ITERATIONS 6 // number of stiffness matrices
+#define ITERATIONS 123 // number of stiffness matrices
 #endif
 
 #ifndef H
-#define H 2 // stiffness matrix dimension
+#define H 20 // stiffness matrix dimension
 #endif
 
 #ifndef N
@@ -67,33 +67,44 @@ void main(void) {
 	float X[H*N];
      	float A[H*H*N];
   	float B[H*N];
-  
+
+	FILE *inFile;
+	inFile = fopen("stiffness1.txt", "r");
+
+  	if (!inFile) {
+  	  printf("Cannot open file.\n");
+  	}
+
 	// populating A's
-	/*for (int k=0; k<N; k++) {     			// matrix index
+	for (k = 0; k < N; k++) {
+		for (j = 0; j < H; j++) {
+			for (i=0; i<H; i++) {
+				fscanf(inFile,"%f",&A[k*H*H + j*H + i]);
+			}
+		}
+	}
+		
+	fclose(inFile);
+
+	// populating A's
+/*	for (int k=0; k<N; k++) {     			// matrix index
 		for(int j=0; j<H; j++) {		// row index
 			for(int i=0; i<H; i++) {	// column index
 				A[k*H*H + j*H + i] = 40786.00;
 			}
     		}
 	}
+*/
 
 	// populating B's and initialializing X's
-   	for (int k=0; k<N; k++) {			// vector indices
-		for(int j=0; j<H; j++) {		// element index
-			B[k*H + j] = 23.345; 
-			X[k*H + j] = 0;
+   	for (k=0; k<N; k++) {			// vector indices
+		for(j=0; j<H; j++) {		// element index
+			B[k*H + j] = 1.00; 
+			X[k*H + j] = 0.00;
 		}
 	}
-	*/
+	
 
-	A[0]=2.00;
-	A[1]=-1.00;
-	A[2]=-1.00;
-	A[3]=2.00;
-	B[0] = 1.00;
-	B[1] = 0.00; 
-	X[0] = 0.00;
-	X[1] = 0.00;
 
 printf("Matrices: AX = B\n");
 for (j=0;j<H;j++) {

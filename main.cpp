@@ -9,11 +9,11 @@
 #include <iostream>
 
 #ifndef H
-#define H 20 // stiffness matrix dimension
+#define H 440 // stiffness matrix dimension
 #endif
 
 #ifndef N
-#define N 1 // number of stiffness matrices
+#define N 8 // number of stiffness matrices
 #endif
 
 using namespace std;
@@ -34,6 +34,8 @@ void cleanup();
 // Entry point
 int main(void) {
 
+  int i,j,k;
+  float f;
   cl_int status;
   
   if(!init()) {
@@ -46,55 +48,80 @@ int main(void) {
 	
 	float *X = new float[H*N];
      	float *A = new float[H*H*N];
-  	float *B = new float[H*N];
-	
-	ifstream inFile;
-	inFile.open("/home/doi4/Downloads/compressed/hello_world/host/src/stiffness1.txt");
+  	float *B = new float[H*N];	
 
-  	if (!inFile) {
+	ifstream inFileA;
+	ifstream inFileb;
+	inFileA.open("/home/doi4/Downloads/A.txt");
+	inFileb.open("/home/doi4/Downloads/b.txt");
+
+  	if (!inFileA) {
+  	  cout << "Cannot open file.\n";
+  	}
+	if (!inFileb) {
   	  cout << "Cannot open file.\n";
   	}
 
-
 	// populating A's
-	for (int k = 0; k < N; k++) {
-		for (int j = 0; j < H; j++) {
-			for (int i=0; i<H; i++) {
-				inFile >> A[k*H*H + j*H + i];
+/*	for (k = 0; k < N; k++) {
+		for (j = 0; j < H; j++) {
+			for (i=0; i<H; i++) {
+				inFileA >> A[k*H*H + j*H + i];
 			}
 		}
 	}
-		
-	inFile.close();
+*/
 
-
-	// populating B's and initialializing X's
-   	for (int k=0; k<N; k++) {			// vector indices
-		for(int j=0; j<H; j++) {		// element index
-			B[k*H + j] = 1.00; 
-			X[k*H + j] = 0;
+//initializing
+	for (k=0; k<N; k++) {
+		for (j = 0; j < H; j++) {
+			for (i=0; i<H; i++) {
+				A[k*H*H + j*H + i] = 0.00;
+			}
+		X[k*H + j] = 0.00;
+		B[k*H + j] = 0.00;
 		}
 	}
 
-		/*B[0] = 1.00;
-		B[1] = 0.00; 
-		X[0] = 0;
-		X[1] = 0;*/
+	// stiffness matrices
+	while(!inFileA.eof()) {
+		inFileA >> j;
+		inFileA >> i;
+		inFileA >> f;		
+		for (k=0; k<N; k++) {
+			A[k*H*H + (j-1)*H + (i-1)]=f;	
+		}
+	}
 	
-	
+	// force vectors
+	while(!inFileb.eof()) {
+		inFileb >> j;
+		inFileb >> i;
+		inFileb >> f;
+		for (k=0; k<N; k++) {
+			B[k*H + (j-1)]=f;
+		}	
+	}
 
+	inFileA.close();
+	inFileb.close();
+
+cout << "\n";
 	// print AX=B before computation
-	for (int k = 0; k < N; k++) {
-		for (int j = 0; j < H; j++) {
-			for (int i=0; i<H; i++) {
-				cout << A[k*H*H + j*H + i] << " ";
+
+/*	for (k = 0; k < N; k++) {
+		for (j = 0; j < 10; j++) {
+			for (i=0; i<10; i++) {
+				cout << A[k*H*H + j*H + i] << "	";
 			}
-		cout << X[k*H + j] << " ";
+		cout << X[k*H + j] << "	";
 		cout << B[k*H + j] << " ";
 	cout << "\n";
 		}
 	}
 
+cout << "\n";
+*/
     // Create memory buffers on the device for each matrix
     cl_mem x_mem_obj = clCreateBuffer(context, CL_MEM_READ_WRITE, N*H*sizeof(float), NULL, &status);
     cl_mem a_mem_obj = clCreateBuffer(context, CL_MEM_READ_WRITE, N*H*H*sizeof(float), NULL, &status);
@@ -126,19 +153,38 @@ int main(void) {
   status = clFinish(queue);
   checkError(status, "Failed to finish");
 
-// check AX=B after computation
-	for (int k = 0; k< N; k++) {
-		for (int j = 0; j < H; j++) {
-			B[k*H + j]=0.00;
-			for (int i=0; i<H; i++) {
-				/*cout << B[k*H + j] << " ";
-				cout << A[k*H*H + j*H + i] << " ";
-				cout << X[k*H + i] << "\n";*/
-				B[k*H + j]+= A[k*H*H + j*H + i] * X[k*H + i];
+// print AX=B after computation
+	
+/*	for (k = 0; k < N; k++) {
+		for (j = 0; j < 10; j++) {
+			for (i=0; i<10; i++) {
+				cout << A[k*H*H + j*H + i] << "	";
 			}
+		cout << X[k*H + j] << "	";
+		cout << B[k*H + j] << " ";
+	cout << "\n";
 		}
 	}
-	cout << B[0] << "\n";	
+*/	
+
+/*for (k=0;k<N; k++) {
+	for (j=0;j<10;j++) {
+		for (i=0;i<10;i++) {
+			if (A[k*H*H + j*H + i] != 0.00) 
+				cout << (k+1) << "	" << (j+1) << "	" << (i+1) << "	" << A[j*H + i] << "\n" ;
+		}
+	}
+}
+*/
+
+for (k=0; k<N; k++) {
+	for (j=0;j<50;j++) {
+		cout << (k+1) << "	" << (j+1) << "	"<< X [j] << "	"<< B[j]<< "\n" ;	
+	}
+}
+
+
+
 	cleanup();
 	clReleaseMemObject(x_mem_obj);
 	clReleaseMemObject(a_mem_obj);
