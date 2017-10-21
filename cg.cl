@@ -1,114 +1,133 @@
-#ifndef ITERATIONS
-#define ITERATIONS 250
-#endif
+#define H 4096 // Matrix size
+#define BLOCK_SIZE 64 // Block size 
+#define NNZ 52104 // Non zero entries
+#define ME 13
 
-#ifndef H
-#define H 440 // default value
-#endif
+#pragma OPENCL EXTENSION cl_khr_fp64 : enable
 
-#ifndef N
-#define N 8 // number of stiffness matrices
-#endif
-
-#ifndef SIMD_WORK_ITEMS
-#define SIMD_WORK_ITEMS 4 // default value
-#endif
-
-//////////////////////////////////////////////////////////////////CONJUGATE GRADIENT
-
-// m'*m function
-float vector_dot(float *vt,float *v){	
-	float ts= 0.0f;	
-	#pragma unroll
-	for (int i=0; i<H; i++) {
-		ts+= vt[i]*v[i];
-	}
-	return ts;
-}
-
-// M*v function
-void matrix_vector(float *m,float *v, float *t){
-	#pragma unroll	
-	for (int j=0; j<H; j++) {
-		t[j]=0;
-		#pragma unroll		
-		for (int i=0; i<H; i++) {
-		t[j]+= m[j*H+i]*v[i];		
-		}	
-	}	
-}
-
-// k*v function
-void scalar_vector(float s,float *v, float *t){
-	#pragma unroll
-	for (int i=0; i<H;i++) {
-		t[i]= v[i]*s;
-	}
-}
-
-// v1-v2 function
-void vector_sub(float *v1, float *v2, float *t){
-	#pragma unroll
-	for (int i=0; i<H;i++) {
-		t[i]= v1[i]-v2[i];
-	}
-}
-
-// v1+v2 function
-void vector_add(float *v1, float *v2, float *t){
-	#pragma unroll
-	for (int i=0; i<H;i++) {
-		t[i]= v1[i]+v2[i];
-	}
-}
 
 __kernel 
-__attribute((reqd_work_group_size(N,1,1)))
-__attribute((num_simd_work_items(SIMD_WORK_ITEMS)))
- void cg(__global float *restrict X, __global float *restrict A, __global float *restrict B) {
+void matrix_vector (__global float *restrict Ap, __global int *restrict col, __global float *restrict val , __global float *restrict p) {				// kernel 2 (ND Range) ELL
 
-	// Get index of the work item
-  	unsigned index = get_global_id(0);
-	//float f = 1e-16;
+	int id1 = get_global_id(1);
+    	int id0 = get_global_id(0); 
 
-	int iters = ITERATIONS;
-	float X_local[H];
-	#pragma unroll
-	for (int i=0; i<H;i++) { X_local[i]= 0; } 			// x = {0}
-	float A_local[H*H];
-	#pragma unroll
-	for (int i=0; i<(H*H);i++) { A_local[i]= A[(index*H*H) + i]; } 		// local_copy of A
-	float r[H];
-		#pragma unroll
-		for (int i=0; i<H;i++) { r[i]= B[(index*H) + i]; }			// r = b		
-	float rtr = vector_dot(r,r);					// rtr = r'r
-	float p[H];
-		#pragma unroll
-		for (int i=0; i<H;i++) { p[i]= r[i]; }			// p = r	
-	float alpha, beta, rtrold; 
- 	float Ap[H], alpha_p[H], alpha_Ap[H], beta_p[H] ;
-	
-	#pragma unroll
-	for (int k=0; k<iters; k++) {
-
-		matrix_vector(A_local,p, Ap);
-		alpha= rtr/(vector_dot(p,Ap));				// alpha	///
+		float running_sum= 0.0f;	
 		
-		scalar_vector(alpha,p,alpha_p);				
-		vector_add(X_local,alpha_p,X_local);			// update x
-
-		scalar_vector(alpha,Ap,alpha_Ap);     		
-		vector_sub(r,alpha_Ap,r);				// update r
-    		
-		rtrold = rtr;						
-    		rtr = vector_dot(r,r);
-    		beta = rtr / (rtrold);					// beta	///
-		
-		scalar_vector(beta,p,beta_p);
-    		vector_add(r,beta_p,p);					// update p	
+		#pragma unroll ME
+		for (int j= 13; j> 0; j--) {
+			int c = col[(id1*H*ME)+(id0*ME)+j-1];
+			running_sum += val[(id1*H*ME)+(id0*ME)+j-1]*p[(id1*H)+c-1];
 		}
 
-	#pragma unroll
-	for (int i=0; i<H;i++) { X[(index*H) + i]= X_local[i]; } 			//write result
+		Ap[(id1*H)+id0] = running_sum;
+}
+
+__kernel	
+__attribute((reqd_work_group_size(BLOCK_SIZE,1,1)))																		
+void dot_product( __global float *restrict Ap, __global float *restrict p, __global float *restrict result ) {								// kernel 1 dot_product
+	
+    // Get the index of the current element
+    int id0 = get_global_id(0);
+    int id1 = get_global_id(1);
+
+    int lid0 = get_local_id(0);		// 0 to BLOCK_SIZE-1
+    int lid1 = get_local_id(1);		// = 1
+
+    int groupid0 = get_group_id(0);	
+    int groupid1 = get_group_id(1);    	// problem id
+
+	__local float product[BLOCK_SIZE];
+	
+	product[lid0] = p[(groupid1*H) + (groupid0*BLOCK_SIZE) +lid0] * Ap[(groupid1*H) + (groupid0*BLOCK_SIZE) +lid0];
+	//complete work group
+	barrier (CLK_LOCAL_MEM_FENCE);
+
+	result[(id1*H)+id0] = product[lid0]; 
+}
+
+__kernel
+void get_alpha( __global float *restrict result, __global float *restrict rtr, __global float *restrict alpha) {							// kernel 3 (Task)
+
+	int id = get_global_id(0);
+	float temp = 0.0f;
+	float f = 1e-16;	
+	
+	#pragma unroll 1
+	for (int i = 0; i<H; i++) {
+		temp += result[(id*H)+i] ;
+	}
+	
+	alpha[id] = rtr[id]/(temp+f);
 
 }
+
+__kernel
+void get_beta( __global float *restrict result, __global float *restrict rtr, __global float *restrict beta) {								// kernel 5 (Task)
+	
+	int id = get_global_id(0);
+    	float rtrnew = 0.0f;
+    	float f = 1e-16;
+
+	# pragma unroll 1	
+	for (int k=0; k< H; k++){
+		rtrnew += result[(id*H)+k];
+	}
+    beta[id] = rtrnew/(rtr[id]+f); 	
+    rtr[id] = rtrnew;  
+}
+
+
+__kernel
+__attribute((reqd_work_group_size(BLOCK_SIZE,1,1)))
+void update_x_r( __global float *restrict Ap, __global float *restrict r, __global float *restrict p, __global float *restrict alpha, __global float *restrict x) {	// kernel 4 (ND_Range) (Work Groups)
+
+    // Get the index of the current element
+    int id0 = get_global_id(0);
+    int id1 = get_global_id(1);
+
+    int lid0 = get_local_id(0);		// 0 to BLOCK_SIZE-1
+    int lid1 = get_local_id(1);		// = 1
+
+    int groupid0 = get_group_id(0);	
+    int groupid1 = get_group_id(1);    	// problem id
+
+	__local float partial_x[BLOCK_SIZE];
+	__local float partial_r[BLOCK_SIZE];
+
+	partial_x[lid0] = x[(groupid1*H) + (groupid0*BLOCK_SIZE) +lid0] + alpha[groupid1] * p[(groupid1*H) + (groupid0*BLOCK_SIZE) +lid0];
+	partial_r[lid0] = r[(groupid1*H) + (groupid0*BLOCK_SIZE) +lid0] - alpha[groupid1] * Ap[(groupid1*H) + (groupid0*BLOCK_SIZE) +lid0];
+	
+	//complete work group
+	barrier (CLK_LOCAL_MEM_FENCE);
+
+	x[(id1*H)+id0] = partial_x[lid0];
+	r[(id1*H)+id0] = partial_r[lid0];
+	
+}
+
+
+__kernel
+__attribute((reqd_work_group_size(BLOCK_SIZE,1,1)))
+void update_p( __global float *restrict r, __global float *restrict p, __global float *restrict beta) {									// kernel 6 (ND_Range) (Work Groups)
+
+    // Get the index of the current element
+    int id0 = get_global_id(0);
+    int id1 = get_global_id(1);
+
+    int lid0 = get_local_id(0);		// 0 to BLOCK_SIZE-1
+    int lid1 = get_local_id(1);		// = 1
+
+    int groupid0 = get_group_id(0);	
+    int groupid1 = get_group_id(1);    	// problem id
+
+	__local float partial[BLOCK_SIZE];
+
+	partial[lid0] = r[(groupid1*H) + (groupid0*BLOCK_SIZE) +lid0] + beta[groupid1] * p[(groupid1*H) + (groupid0*BLOCK_SIZE) +lid0];
+    	
+	//complete work group
+	barrier (CLK_LOCAL_MEM_FENCE);
+	
+	p[(id1*H)+id0]= partial[lid0];
+}
+
